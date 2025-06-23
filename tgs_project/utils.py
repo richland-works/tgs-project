@@ -5,7 +5,7 @@ from io import TextIOBase
 from datasets import load_dataset
 from typing import Any
 import time
-from typing import Iterator
+from typing import Iterator, Any, Dict
 
 
 try:
@@ -78,16 +78,33 @@ def write_jsonl(
     print(f"Written {len(data)} items to {f.name}") # type: ignore
     
 
-def read_jsonl(file_name: str) -> list:
+def read_jsonl(
+    file_name: str,
+    create: bool = False
+) -> Iterator[dict[str, Any]]:
     """
     Read a JSONL file and return a list of dictionaries.
     """
     if os.path.exists(file_name):
         with open(file_name, "r") as f:
-            return [json.loads(line) for line in f]
+            for line in f:
+                yield json.loads(line)
+    else:
+        if create:
+            with open(file_name, "w") as f:
+                pass
+        else:
+            raise FileNotFoundError(f"File {file_name} not found. Create a blank file at least.")
+        
+def get_jsonl_n_count(file_name: str) -> int:
+    """
+    Get the number of lines in a JSONL file.
+    """
+    if os.path.exists(file_name):
+        with open(file_name, "r") as f:
+            return sum(1 for _ in f.readlines())
     else:
         raise FileNotFoundError(f"File {file_name} not found.")
-    
 
 def read_and_follow_jsonl(path: str, delay: float = 0.5) -> Iterator[dict]:
     """Yield existing JSONL records, then follow new ones as they're appended."""
