@@ -7,18 +7,18 @@ collection = client.get_core("articles")
 
 schema = SolrSchema(collection)
 
-#schema.add_field({"name": "id", "type": "string", "stored": True, "required": True})
-# schema.add_field({"name": "article", "type": "text_general", "stored": True})
-# schema.add_field({"name": "resolved_text", "type": "text_general", "stored": True})
-# schema.add_field({"name": "ner_PERSON", "type": "strings", "multiValued": True, "stored": True})
-# schema.add_field({"name": "ner_ORG", "type": "strings", "multiValued": True, "stored": True})
-# schema.add_field({"name": "ner_GPE", "type": "strings", "multiValued": True, "stored": True})
-# schema.add_field({"name": "ner_DATE", "type": "strings", "multiValued": True, "stored": True})
-# schema.add_field({"name": "sentences", "type": "text_general", "multiValued": True, "stored": True})
-# schema.add_field({"name": "highlights", "type": "text_general", "multiValued": False, "stored": True})
+schema.add_field({"name": "id", "type": "string", "stored": True, "required": True})
+schema.add_field({"name": "article", "type": "text_general", "stored": True})
+schema.add_field({"name": "resolved_text", "type": "text_general", "stored": True})
+schema.add_field({"name": "ner_PERSON", "type": "strings", "multiValued": True, "stored": True})
+schema.add_field({"name": "ner_ORG", "type": "strings", "multiValued": True, "stored": True})
+schema.add_field({"name": "ner_GPE", "type": "strings", "multiValued": True, "stored": True})
+schema.add_field({"name": "ner_DATE", "type": "strings", "multiValued": True, "stored": True})
+schema.add_field({"name": "sentences", "type": "text_general", "multiValued": True, "stored": True})
+schema.add_field({"name": "highlights", "type": "text_general", "multiValued": False, "stored": True})
 
-# ner_collection = client.create_core("ner_articles")
 
+# Load the data
 with open("C:\\Users\\richa\\Documents\\tgs-project\\notebooks\\ner_results.json", "r") as f:
     data = json.load(f)
 

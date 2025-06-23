@@ -1,5 +1,66 @@
-# tgs-project
-A Basic NLP project
+# TGS Project
+
+This repository contains tooling for text processing and modeling using spaCy, Solr, and NLP techniques.
+
+## Project Structure
+
+```
+genderated_data/
+    The default output directory from the various stages of the pipeline
+notebooks/                  # Jupyter notebooks for exploration and prototyping
+    document_eda.ipynb      # EDA notebook on documents
+    tests.ipynb             # Notebook for testing components
+
+scripts/                    # Standalone executable scripts
+    tokenize_by_sentence.py # Tokenizes input documents by sentence
+
+tests/                      # Python test scripts
+    test_colbert_install.py
+    test_get_data.py
+    test_gpu_participation.py
+    test_ner_article.py
+    test_spacy_install.py
+
+tgs_project/                # Main source code
+├── backend/
+│   └── initialize_solr.py  # Solr initialization utility
+│   └── solr.py             # Solr utility functions
+├── document_processing/
+│   └── ner_extraction.py         # Named Entity Recognition logic
+│   └── resolve_coreferences.py   # Coreference resolution
+│   └── sentence_processing.py    # Sentence splitting pipeline
+│   └── topic_modeling.py         # Topic modeling logic
+│   └── word_2_vec.py             # Word2Vec training
+├── etl/                   # Placeholder for ETL processes
+├── frontend/              # Placeholder for UI or frontend code
+├── pipeline/
+│   └── pipeline.py        # Parallel/staged pipeline class
+│   └── utils.py           # General utilities
+
+.env                        # User provided environment variable definitions
+.gitignore                  # Git ignore file
+poetry.lock                 # Poetry lock file
+pyproject.toml              # Poetry config with dependencies
+README.md                   # This file
+```
+
+## Setup
+
+Install dependencies:
+
+```bash
+poetry install
+```
+
+## Usage
+
+Use `scripts/tokenize_by_sentence.py` to tokenize documents into sentences.
+
+## Notes
+
+- All NLP components are modular and designed to work within a staged processing pipeline.
+- `tgs_project.pipeline` provides support for multiprocessing and batch processing of data.
+
 ## Project Setup
 
 This project uses [Poetry](https://python-poetry.org/) for dependency management.
