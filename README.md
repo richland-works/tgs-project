@@ -156,3 +156,102 @@ The output is written in JSON lines (.jsonl) format
   "highlights": "Summary of the article..."
 }
 ```
+# SentenceTokenizerPipeline
+
+This module defines a sentence tokenization pipeline for processing large sets of documents in parallel using [spaCy](https://spacy.io/), with multiprocessing and batch writing to disk in JSONL format.
+
+IMPORTANT WARNING:
+
+Due to how Python's `multiprocessing` works, this module should not be executed directly unless wrapped in an `if __name__ == "__main__":` block.
+
+Failure to do so may result in:
+- Pickling errors
+- Recursive subprocess spawning (especially on Windows)
+- Unpredictable behavior when using multiprocessing pools
+
+To safely run the pipeline:
+
+    def main():
+        ...
+
+    if __name__ == "__main__":
+        import multiprocessing as mp
+        mp.freeze_support()
+        main()
+
+
+## Features
+
+- Tokenizes input text into sentences using spaCy's sentencizer
+- Parallel processing via Python `multiprocessing`
+- Efficient batch handling and buffered disk writes
+- Skips already-processed data using `id` field tracking
+- Composable with other pipeline stages
+
+## Installation
+
+Install the required dependencies:
+
+```bash
+pip install spacy tqdm
+python -m spacy download en_core_web_sm
+```
+
+You also need your custom modules accessible:
+
+- `tgs_project.pipeline.pipeline`
+- `tgs_project.utils`
+
+Ensure they're in your PYTHONPATH or part of your package.
+
+## Usage
+
+```python
+from sentence_pipeline import SentenceTokenizerPipeline
+from tgs_project.pipeline.pipeline import DataBatch
+
+data = [{"id": "001", "article": "This is a test. Another sentence."}]
+batch = DataBatch(data, count=len(data))
+
+# Use the default of 1 worker, otherwise, 
+# it needs to be encapsulated in a "main"
+pipeline = SentenceTokenizerPipeline()
+results = list(batch | pipeline)
+```
+
+## Command-Line Execution
+
+```python
+if __name__ == "__main__":
+    import multiprocessing as mp
+    mp.freeze_support()
+    main()
+```
+
+## Parameters
+
+| Parameter       | Type   | Description                                                                 |
+|----------------|--------|-----------------------------------------------------------------------------|
+| `n_workers`     | int    | Number of processes (0 or -1 uses all cores)                                |
+| `results_path`  | str    | Path to store output JSONL                                                  |
+| `batch_size`    | int    | Number of records per batch                                                 |
+| `flush_interval`| int    | Write to disk after this many processed records                             |
+| `chunksize`     | int    | Chunk size passed to the multiprocessing pool                               |
+
+## Output Format
+
+Each output record is a JSON object:
+
+```json
+{
+  "id": "001",
+  "article": "This is a test. Another sentence.",
+  "sentences": ["This is a test.", "Another sentence."]
+}
+```
+
+## Notes
+
+- Only `article` and `id` fields are required for input
+- Each parallel worker initializes its own spaCy pipeline to avoid pickling issues
+- Processing is streamed to file, not held in memory

@@ -54,9 +54,9 @@ class DocumentEmbedding:
             tokens = word_tokenize(doc)
             if self.remove_stop_words:
                 # Remove stop words
-                filtered = [word for word in tokens if word.lower() not in self.stop_words]
+                filtered = [word.lower() for word in tokens if word.lower() not in self.stop_words]
             else:
-                filtered = tokens
+                filtered = [token.lower() for token in tokens]
             processed_docs.append(filtered)
         return processed_docs
 
