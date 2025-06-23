@@ -1,7 +1,18 @@
+# Personal
+.env
+*.jsonl
+generated_data/
+out/
+*.json
+.venv/
+.vscode/
+.mypy_cache/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyi
 
 # C extensions
 *.so

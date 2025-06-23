@@ -1,0 +1,43 @@
+[project]
+name = "tgs_project"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "richland-works",email = "nlp.richard.hipsh@gmail.com"}
+]
+readme = "README.md"
+requires-python = "<3.13,>=3.11"
+dependencies = [
+    "torch @ https://download.pytorch.org/whl/cu118/torch-2.2.2%2Bcu118-cp311-cp311-win_amd64.whl",
+    "ipywidgets (>=8.1.7,<9.0.0)",
+    "colbert-ai @ file:///C:/Users/richa/Documents/ColBERT",
+    "setuptools (>=80.9.0,<81.0.0)",
+    "numpy (>=1.26,<2.0)",
+    "transformers (==4.33.2)",
+    "faiss-cpu (>=1.11.0,<2.0.0)",
+    "spacy (>=3.3.0,<4.0.0)",
+    "cupy-cuda12x (>=13.4.1,<14.0.0)",
+    "spacy-experimental (>=0.6.4,<0.7.0)",
+    "spacy-lookups-data (>=1.0.5,<2.0.0)"
+]
+
+[tool.poetry]
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.5"
+ipywidgets = "^8.1.7"
+datasets = "^3.6.0"
+python-dotenv = "^1.1.0"
+mypy = "^1.16.1"
+seaborn = "^0.13.2"
+dask = {extras = ["distributed"], version = "^2025.5.1"}
+bokeh = "^3.7.3"
+nltk = "^3.9.1"
+tqdm = "^4.67.1"
+fastcoref = "^2.1.6"
+gensim = "^4.3.3"
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

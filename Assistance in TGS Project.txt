@@ -1,0 +1,14 @@
+https://cognition.ai/blog/dont-build-multi-agents
+
+https://pypi.org/project/pytextrank/
+
+https://www.projectpro.io/article/llm-summarization/1082
+
+https://arxiv.org/abs/2309.11495
+
+https://huggingface.co/docs/transformers/v4.17.0/en/tasks/summarization
+
+https://huggingface.co/models?pipeline_tag=summarization&sort=trending
+
+https://medium.com/voice-tech-podcast/automatic-extractive-text-summarization-using-tfidf-3fc9a7b26f5
+
