@@ -56,7 +56,12 @@ class SolrCore:
 
     def schema_url(self) -> str:
         return f"{self.base_url}/schema"
-
+    def status_url(self) -> str:
+        return f"{self.base_url}/admin/cores?action=STATUS&core={self.name}"
+    def custom_field_types_url(self) -> str:
+        return f"{self.schema_url()}/fieldtypes"
+    def copy_field_url(self) -> str:
+        return f"{self.schema_url()}/copyfields"
     def update_url(self, commit: bool = True) -> str:
         return f"{self.base_url}/update{'?commit=true' if commit else ''}"
     def add_documents(
@@ -82,7 +87,14 @@ class SolrCore:
             response = requests.post(url, json=atomic_docs, headers=headers)
         response.raise_for_status()
         return response
-
+    def delete_all_documents(self) -> requests.Response:
+        """Clear all documents in the Solr core."""
+        url = self.update_url(commit=True)
+        headers = {"Content-Type": "application/json"}
+        payload = {"delete": {"query": "*:*"}}
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        return response
 class SolrCollection:
     def __init__(self):
         msg = "SolrCollection is not supported in standalone Solr mode."
@@ -93,8 +105,110 @@ class SolrSchema:
     def __init__(self, core: SolrCore):
         self.core = core
         self.fields: Dict[str, Dict[str, Any]] = {}
+        self.field_types: Dict[str, Dict[str, Any]] = {}
+        self.copy_fields: Dict[tuple, Dict[str, Any]] = {}
         self.refresh_fields()
 
+    def create_custom_field_type(
+        self,
+        custom_type_definition: Dict[str, Any],
+        auto_commit: bool = True,
+        raise_if_exists: bool = True
+        ):
+        """Create a custom field type in the Solr schema."""
+        if 'name' not in custom_type_definition:
+            msg = "Custom field type definition must include a 'name' key."
+            logger.error(msg)
+            raise ValueError(msg)
+        if 'class' not in custom_type_definition:
+            msg = "Custom field type definition must include a 'class' key."
+            logger.error(msg)
+            raise ValueError(msg)
+        self.refresh_field_types()
+        if custom_type_definition['name'] in self.field_types:
+            if raise_if_exists:
+                msg = f"Custom field type '{custom_type_definition['name']}' already exists."
+                logger.error(msg)
+                raise SolrFieldExistsError(msg)
+            else:
+                logger.info(f"Custom field type '{custom_type_definition['name']}' already exists in the schema.")
+                return self.field_types[custom_type_definition['name']]
+        
+        try:
+            if auto_commit:
+                # Add the custom field type to the schema
+                payload = {"add-field-type": custom_type_definition}
+                response = requests.post(self.core.custom_field_types_url(), json=payload)
+                response.raise_for_status()
+                logger.info(f"Custom field type '{custom_type_definition['name']}' committed to Solr schema.")
+            else:
+                logger.info(f"Custom field type '{custom_type_definition['name']}' added but not committed.")
+        except requests.RequestException as e:
+            logger.error(f"Error creating custom field type '{custom_type_definition['name']}': {e}")
+            raise SolrFieldError(f"Error creating custom field type: {e}")
+        self.field_types[custom_type_definition['name']] = custom_type_definition
+        return self.field_types[custom_type_definition['name']]
+    def create_copy_fields(
+        self,
+        copy_field_pairs: list[tuple[str, str]],
+        auto_commit: bool = True,
+        raise_if_exists: bool = True
+    ) -> list[tuple[str, str]]:
+        """Create copy fields in the Solr schema from (source, dest) pairs."""
+        self.refresh_copy_fields()
+        self.refresh_fields()
+        existing_pairs = list(self.copy_fields.keys())
+        new_pairs = []
+
+        # Make sure the source and destination fields exist
+        for source, dest in copy_field_pairs:
+            if source not in self.fields:
+                msg = f"Source field '{source}' does not exist in the schema."
+                logger.error(msg)
+                raise SolrFieldNotFoundError(msg)
+            if dest not in self.fields:
+                msg = f"Destination field '{dest}' does not exist in the schema."
+                logger.error(msg)
+                raise SolrFieldNotFoundError(msg)
+            if (source, dest) in existing_pairs:
+                if raise_if_exists:
+                    msg = f"Copy field '{source}' -> '{dest}' already exists in the schema."
+                    logger.error(msg)
+                    raise SolrFieldExistsError(msg)
+                else:
+                    logger.info(f"Copy field '{source}' -> '{dest}' already exists in the schema.")
+            else:
+                new_pairs.append((source, dest))
+
+        if not new_pairs:
+            if raise_if_exists:
+                msg = f"All copy fields already exist: {copy_field_pairs}"
+                logger.error(msg)
+                raise SolrFieldExistsError(msg)
+            else:
+                logger.info(f"All copy fields already exist: {copy_field_pairs}")
+                return copy_field_pairs
+
+        payload = {
+            "add-copy-field": [{"source": src, "dest": dst} for src, dst in new_pairs]
+        }
+
+        try:
+            if auto_commit:
+                response = requests.post(self.core.copy_field_url(), json=payload)
+                response.raise_for_status()
+                logger.info(f"Committed copy fields: {new_pairs}")
+            else:
+                logger.info(f"Prepared copy fields (not committed): {new_pairs}")
+        except requests.RequestException as e:
+            logger.error(f"Error creating copy fields: {e}")
+            raise SolrFieldError(f"Error creating copy fields: {e}")
+
+        # Update internal cache
+        for pair in new_pairs:
+            self.copy_fields[pair] = {"source": pair[0], "dest": pair[1]}
+
+        return new_pairs    
     def commit_all_fields(self) -> Dict[str, Any]:
         for field in self.uncommitted_fields():
             logger.info(f"Committing field '{field['name']}' to Solr schema.")
@@ -178,6 +292,27 @@ class SolrSchema:
             self.fields = {field["name"]: field for field in response.json()["fields"]}
         except requests.RequestException as e:
             logger.error(f"Error refreshing fields from Solr schema: {e}")
+            raise
+    def refresh_field_types(self) -> None:
+        """Refresh field type definitions from Solr."""
+        response = requests.get(self.core.custom_field_types_url())
+        try:
+            response.raise_for_status()
+            self.field_types = {ftype["name"]: ftype for ftype in response.json()["fieldTypes"]}
+        except requests.RequestException as e:
+            logger.error(f"Error refreshing field types from Solr schema: {e}")
+            raise
+    def refresh_copy_fields(self) -> None:
+        """Refresh copy field definitions from Solr."""
+        try:
+            response = requests.get(self.core.copy_field_url())
+            response.raise_for_status()
+            self.copy_fields = {
+                (cf["source"], cf["dest"]): cf
+                for cf in response.json()["copyFields"]
+            }
+        except requests.RequestException as e:
+            logger.error(f"Error refreshing copy fields from Solr schema: {e}")
             raise
 
     def field_exists(self, name: str) -> bool:

@@ -22,6 +22,8 @@ def _tokenize(rec):
     return d
 tokenize = Stage(_tokenize)
 
+# The sentences are stored in the "sentences" field
+# and the original text is stored in the "resolved_text" field
 def _sentences(rec):
     rec["sentences"] = [sent.text for sent in rec["doc"].sents]
     return rec
