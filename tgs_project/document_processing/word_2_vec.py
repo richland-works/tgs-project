@@ -4,13 +4,14 @@ nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
 
 import os
-import json
 
 from gensim.models import Word2Vec
-from nltk.tokenize import sent_tokenize, word_tokenize
-
+from nltk.tokenize import word_tokenize
+from typing import Union, List, Iterable
 from nltk.corpus import stopwords
 import numpy as np
+from tgs_project.pipeline.pipeline import Stage
+from tgs_project.document_processing.tf_idf_mapping import TfidfModel
 
 try:
     from dotenv import load_dotenv
@@ -28,8 +29,10 @@ class DocumentEmbedding:
         window_size: int = 5,
         min_count: int = 1,
         workers: int = -1,
-        remove_stop_words: bool = False,
-        model_path: str = os.getenv("WORD_2_VEC_PATH", "word2vec.model")
+        remove_stop_words: bool = True,
+        model_path: str = os.getenv("WORD_2_VEC_PATH", "word2vec.model"),
+        tf_idf_model: Union[TfidfModel, None] = None,
+        weighted_vectors: bool = False
     ):
         self.documents = documents
         self.stop_words = set(stopwords.words("english")) | additional_stop_words
@@ -38,6 +41,11 @@ class DocumentEmbedding:
         self.window_size = window_size
         self.min_count = min_count
         self.remove_stop_words = remove_stop_words
+        self.tf_idf_model = tf_idf_model
+        self.weighted_vectors = weighted_vectors
+
+        if self.weighted_vectors and not self.tf_idf_model:
+            raise ValueError("If weighted_vectors is True, tf_idf_model must be provided.")
 
         # Get the number of workers
         # This is for typing purposes
@@ -77,7 +85,46 @@ class DocumentEmbedding:
         if self.model is None:
             raise ValueError("Model not trained. Call train_word2vec() first.")
         tokens = word_tokenize(text)
-        vectors = [self.model.wv[word] for word in tokens if word in self.model.wv]
+        if self.remove_stop_words:
+            tokens = [word.lower() for word in tokens if word.lower() not in self.stop_words]
+        else:
+            tokens = [token.lower() for token in tokens]
+        if self.weighted_vectors and self.tf_idf_model:
+            vectors, weights = zip(*[
+                (self.model.wv[word], self.tf_idf_model.weight(word))
+                for word in tokens if word in self.model.wv
+            ])
+        else:
+            vectors = [self.model.wv[word] for word in tokens if word in self.model.wv]
+            weights = [1.0] * len(vectors)
         if not vectors:
-            return np.zeros(model.vector_size).astype(float) # type: ignore
-        return np.mean(vectors, axis=0).astype(float)
+            return np.zeros(self.model.vector_size).astype(float).tolist()
+        vectors = np.stack(vectors)
+        weights = np.array(weights)
+        return np.average(vectors, axis=0, weights=weights).astype(float).tolist()
+
+class DocumentWeightedEmbeddingStage(DocumentEmbedding,Stage):
+    def __init__(
+        self,
+        model_path: str = os.getenv("WORD_2_VEC_PATH", "word2vec.model"),
+        additional_stop_words: set[str] = set(),
+        embedding_size: int = 100,
+        window_size: int = 5,
+        min_count: int = 1,
+        workers: int = -1,
+        remove_stop_words: bool = True,
+    ):
+        if model_path is None:
+            raise ValueError("model_path must be provided.")
+        self.model_path = model_path
+        self.weighted_vectors = True
+        self.additional_stop_words = additional_stop_words
+        self.embedding_size = embedding_size
+        self.window_size = window_size
+        self.min_count = min_count
+        self.workers = workers
+        self.remove_stop_words = remove_stop_words
+    def fn(self, data: Iterable[str]) -> Iterable[list[float]]:
+        """Apply the embedding to each document in the data."""
+        for item in data:
+            yield self.embed(item)

@@ -1,9 +1,10 @@
 from __future__ import annotations
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Iterator
 import os
 import requests
 from dataclasses import dataclass
 from tgs_project.logger import logger
+from tqdm import tqdm
 
 
 # This is for development purposes only, to load environment variables from a .env file.
@@ -64,29 +65,39 @@ class SolrCore:
         return f"{self.schema_url()}/copyfields"
     def update_url(self, commit: bool = True) -> str:
         return f"{self.base_url}/update{'?commit=true' if commit else ''}"
+    def update_bulk_url(self, commit: bool = True) -> str:
+        """Return the URL for bulk updates."""
+        return f"{self.base_url}/update/json/docs{'?commit=true' if commit else ''}"
+    def query_url(self) -> str:
+        return f"{self.base_url}/select"
+    
+    def make_docs_atomic(self, docs: list[dict]) -> list[dict]:
+        """Convert documents to atomic updates."""
+        atomic_docs = []
+        for doc in docs:
+            if "id" not in doc:
+                msg = f"Document {doc} does not have an 'id' field."
+                logger.error(msg)
+                raise SolrCoreDocumentIdMissingError(msg)
+            atomic_doc = {k: {"set": v} for k, v in doc.items() if v is not None and k != "id"}
+            atomic_doc["id"] = doc["id"]  # Ensure the ID is included
+            atomic_docs.append(atomic_doc)
+        return atomic_docs
+
     def add_documents(
         self,
         docs: list[dict],
         commit: bool = True,
         atomic: bool = False
     ) -> requests.Response:
-        url = self.update_url(commit=commit)
+        url = self.update_url(commit=commit) if atomic else self.update_bulk_url(commit=commit)
         headers = {"Content-Type": "application/json"}
-        if not atomic:
-            response = requests.post(url, json=docs, headers=headers)
-        else:  # For atomic updates, we need to add the "set" to the values
-            atomic_docs = []
-            for doc in docs:
-                if "id" not in doc:
-                    msg = f"Document {doc} does not have an 'id' field."
-                    logger.error(msg)
-                    raise SolrCoreDocumentIdMissingError(msg)
-                atomic_doc = {k: {"set": v} for k, v in doc.items() if v is not None and k != "id"}
-                atomic_doc["id"] = doc["id"]  # Ensure the ID is included
-                atomic_docs.append(atomic_doc)
-            response = requests.post(url, json=atomic_docs, headers=headers)
+        if atomic:
+            docs = self.make_docs_atomic(docs)
+        response = requests.post(url, json=docs, headers=headers)
         response.raise_for_status()
         return response
+
     def delete_all_documents(self) -> requests.Response:
         """Clear all documents in the Solr core."""
         url = self.update_url(commit=True)
@@ -95,6 +106,68 @@ class SolrCore:
         response = requests.post(url, json=payload, headers=headers)
         response.raise_for_status()
         return response
+    
+    def query(
+        self,
+        query: str = "*:*",
+        batch_size: int = 1000
+    ) -> Iterator[dict]:
+        """Generator for paginated Solr queries using cursorMark."""
+        params = {
+            "q": query,
+            "wt": "json",
+            "rows": batch_size,
+            "cursorMark": "*",
+            "sort": "id asc",
+        }
+
+        url = self.query_url()
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+
+        while True:
+            response = requests.get(url, params=params, headers=headers)
+            response.raise_for_status()
+            result = response.json()
+
+            docs = result["response"]["docs"]
+            if not docs:
+                break
+            yield from docs
+
+            next_cursor = result.get("nextCursorMark")
+            if not next_cursor or next_cursor == params["cursorMark"]:
+                break
+            params["cursorMark"] = next_cursor
+
+    def facet_query(
+        self,
+        facet_field: str,
+        query: str = "*:*",
+        **kwargs
+    ) -> Iterator[Dict[str, int]]:
+        """
+        Yield (term, count) pairs for a single facet_field.
+        Classic Solr field-faceting only – no cursorMark needed.
+        """
+        params = {
+            "q": query,
+            "rows": 0,
+            "facet": "true",
+            "facet.field": facet_field,
+            "facet.limit": -1,      # all terms unless caller overrides
+            "wt": "json",
+            **kwargs
+        }
+        url = self.query_url()
+        resp = requests.get(url, params=params)
+        resp.raise_for_status()
+        counts = resp.json()["facet_counts"]["facet_fields"][facet_field]
+
+        # counts = [term1, count1, term2, count2, ...]
+        it = iter(counts)
+        for term, cnt in zip(it, it):
+            yield {term: cnt}
+
 class SolrCollection:
     def __init__(self):
         msg = "SolrCollection is not supported in standalone Solr mode."

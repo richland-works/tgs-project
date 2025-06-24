@@ -36,6 +36,7 @@ nltk = "^3.9.1"
 tqdm = "^4.67.1"
 fastcoref = "^2.1.6"
 gensim = "^4.3.3"
+scikit-learn = "^1.7.0"
 
 
 [build-system]

@@ -10,6 +10,19 @@ except ImportError:
     print("dotenv not installed, skipping environment variable loading.")
 
 class ArticleEntityProcessor:
+    """
+    A class to process articles and extract named entities using spaCy.
+    Attributes:
+        model_name (str): The name of the spaCy model to use.
+        batch_size (int): The batch size for processing.
+        use_gpu (bool): Whether to use GPU for processing.
+        results_path (str): The path to save the results.
+        flush_interval (int): The interval at which to flush results to disk.
+    TO DO:
+        - Add support for multiple models (e.g., en_core_web_sm, en_core_web_md, etc.)
+        - Add support for custom models.
+        - Create n grams while extracting entities.
+    """
     def __init__(
         self,
         model_name="en_core_web_trf",

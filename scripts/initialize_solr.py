@@ -4,6 +4,8 @@ import os
 from tqdm import tqdm
 from tgs_project.utils import read_jsonl, get_jsonl_n_count
 from tgs_project.pipeline.pipeline import DataBatch
+from tgs_project.utils import context_windows, tokenize_merge_phrases
+import uuid
 
 try:
     from dotenv import load_dotenv
@@ -35,91 +37,75 @@ if not SOLR_URL:
 # Initialize Solr client and schema
 client = SolrClient(SOLR_URL)
 collection = client.get_or_create_core("articles")
+context_windows_collection = client.get_or_create_core("context_windows")
 collection.delete_all_documents()
+context_windows_collection.delete_all_documents()
 
 schema = SolrSchema(collection)
-
-# We want to be able to do n-gram processing, so we need to create the type:
-text_n_gram_type = {
-        "name": "text_word_ngrams",
-        "class": "solr.TextField",
-        "analyzer": {
-            "tokenizer": { "class": "solr.StandardTokenizerFactory" },
-            "filters": [
-                { "class": "solr.LowerCaseFilterFactory" },
-                {
-                    "class": "solr.ShingleFilterFactory",
-                    "minShingleSize": "3",
-                    "maxShingleSize": "5",
-                    "outputUnigrams": "false"
-                }
-            ]
-        }
-    }
-text_no_stop_words = {
-    "name": "text_no_stop_words",
-    "class": "solr.TextField",
-    # Optional but nice: keeps phrase queries from leaking across sentence / value boundaries
-    "positionIncrementGap": "100",
-    "analyzer": {
-        "tokenizer": { "class": "solr.StandardTokenizerFactory" },
-        "filters": [
-            { "class": "solr.LowerCaseFilterFactory" },
-            {                       # -- word diet starts here
-                "class": "solr.StopFilterFactory",
-                "ignoreCase": "true"  # case-insensitive
-                # Drop “words” and “format” to use Solr’s built-in list at lang/stopwords_en.txt.
-                # Add them back if you need a custom file or Snowball format.
-            }
-        ]
-    }
-}
-
-
-# Add the n-gram type to the schema
-schema.create_custom_field_type(text_n_gram_type, raise_if_exists=False)
-schema.create_custom_field_type(text_no_stop_words, raise_if_exists=False)
+context_windows_schema = SolrSchema(context_windows_collection)
 
 schema.add_field({"name": "id", "type": "string", "stored": True, "required": True}, raise_if_exists=False)
-schema.add_field({"name": "article", "type": "text_general", "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "article_ngrams", "type": "text_word_ngrams", "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "article_no_stop_words", "type": "text_no_stop_words", "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "resolved_text", "type": "text_general", "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "sentences", "type": "text_general", "multiValued": True, "stored": True}, raise_if_exists=False)
+schema.add_field({"name": "article", "type": "text_general", "stored": True, "indexed": True}, raise_if_exists=False)
+schema.add_field({"name": "article_no_stop_words", "type": "text_general", "indexed": True, "stored": True}, raise_if_exists=False)
+schema.add_field({"name": "resolved_text", "type": "text_general", "stored": True, "indexed": True}, raise_if_exists=False)
+schema.add_field({"name": "sentences", "type": "text_general", "multiValued": True, "stored": True, "indexed": True}, raise_if_exists=False)
 schema.add_field({"name": "sentences_str", "type": "string", "multiValued": True, "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "highlights", "type": "text_general", "multiValued": False, "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "ner_PERSON", "type": "strings", "multiValued": True, "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "ner_ORG", "type": "strings", "multiValued": True, "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "ner_GPE", "type": "strings", "multiValued": True, "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "ner_DATE", "type": "strings", "multiValued": True, "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "ner_MONEY", "type": "strings", "multiValued": True, "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "ner_QUANTITY", "type": "strings", "multiValued": True, "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "ner_ORDINAL", "type": "strings", "multiValued": True, "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "ner_CARDINAL", "type": "strings", "multiValued": True, "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "ner_WORK_OF_ART", "type": "strings", "multiValued": True, "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "ner_EVENT", "type": "strings", "multiValued": True, "stored": True}, raise_if_exists=False)
-schema.add_field({"name": "ner_LAW", "type": "strings", "multiValued": True, "stored": True}, raise_if_exists=False)
+schema.add_field({"name": "highlights", "type": "text_general", "multiValued": False, "stored": True, "indexed": True}, raise_if_exists=False)
+schema.add_field({"name": "ner_PERSON", "type": "strings", "multiValued": True, "stored": True, "indexed": True}, raise_if_exists=False)
+schema.add_field({"name": "ner_ORG", "type": "strings", "multiValued": True, "stored": True, "indexed": True}, raise_if_exists=False)
+schema.add_field({"name": "ner_GPE", "type": "strings", "multiValued": True, "stored": True, "indexed": True}, raise_if_exists=False)
+schema.add_field({"name": "ner_DATE", "type": "strings", "multiValued": True, "stored": True, "indexed": True}, raise_if_exists=False)
+schema.add_field({"name": "ner_MONEY", "type": "strings", "multiValued": True, "stored": True, "indexed": True}, raise_if_exists=False)
+schema.add_field({"name": "ner_QUANTITY", "type": "strings", "multiValued": True, "stored": True, "indexed": True}, raise_if_exists=False)
+schema.add_field({"name": "ner_ORDINAL", "type": "strings", "multiValued": True, "stored": True, "indexed": True}, raise_if_exists=False)
+schema.add_field({"name": "ner_CARDINAL", "type": "strings", "multiValued": True, "stored": True, "indexed": True}, raise_if_exists=False)
+schema.add_field({"name": "ner_WORK_OF_ART", "type": "strings", "multiValued": True, "stored": True, "indexed": True}, raise_if_exists=False)
+schema.add_field({"name": "ner_EVENT", "type": "strings", "multiValued": True, "stored": True, "indexed": True}, raise_if_exists=False)
+schema.add_field({"name": "ner_LAW", "type": "strings", "multiValued": True, "stored": True, "indexed": True}, raise_if_exists=False)
 schema.create_copy_fields(copy_field_pairs=[
-        ("article", "article_ngrams"),
         ("sentences", "sentences_str"),
     ],
     raise_if_exists=False
 
 )
 
+# Now add the n-grams collection
+context_windows_schema.add_field({"name": "article_context_windows", "type": "text_general", "indexed": True, "stored": True}, raise_if_exists=False)
+context_windows_schema.add_field({"name": "article_context_windows_str", "type": "string", "indexed": True, "stored": True}, raise_if_exists=False)
+context_windows_schema.add_field({"name": "resolved_context_windows", "type": "text_general", "indexed": True, "stored": True}, raise_if_exists=False)
+context_windows_schema.add_field({"name": "resolved_context_windows_str", "type": "string", "indexed": True, "stored": True}, raise_if_exists=False)
+context_windows_schema.add_field({"name": "article_id", "type": "string", "indexed": True, "stored": True}, raise_if_exists=False)
+context_windows_schema.create_copy_fields(copy_field_pairs=[
+        ("article_context_windows", "article_context_windows_str"),
+        ("resolved_context_windows", "resolved_context_windows_str")
+    ],
+    raise_if_exists=False
+)
+
 
 # First add the main docs with the NERs
-with open(NER_RESULTS_PATH, "r") as f:
-    data = json.load(f)
+# Now add the coref results
+all_docs = DataBatch(
+    data=read_jsonl(NER_RESULTS_PATH),
+    count=get_jsonl_n_count(NER_RESULTS_PATH) // SOLR_INDEXING_PAGE_SIZE,
+    processed_ids=set()
+)
 
-all_docs = list(data.items())
-
-for i in tqdm(range(0, len(all_docs), SOLR_INDEXING_PAGE_SIZE), desc="Uploading to Solr"):
+missing_coref = {}
+for batch in tqdm(all_docs.batched(SOLR_INDEXING_PAGE_SIZE), total=all_docs.count, desc="Uploading coref results to Solr"):
     docs = []
-    for doc_id, item in all_docs[i:i+SOLR_INDEXING_PAGE_SIZE]:
+    context_windows_docs = []
+    for item in batch:
         docs.append({
-            "id": doc_id,
+            "id": item.get("id"),
             "article": item["article"],
+            "article_no_stop_words": " ".join(
+                tokenize_merge_phrases(
+                    item["article"],
+                    remove_stop_words=True,
+                    remove_punct=False,
+                    merge_punct=True)
+                ),
             "resolved_text": item.get("resolved_text", ""),
             "ner_PERSON": [ _[0] for _ in item.get('entities', []) if _[1] == "PERSON"],
             "ner_ORG": [ _[0] for _ in item.get('entities', []) if _[1] == "ORG"],
@@ -135,7 +121,21 @@ for i in tqdm(range(0, len(all_docs), SOLR_INDEXING_PAGE_SIZE), desc="Uploading 
             "sentences": item.get("sentences", []),
             "highlights": item.get("highlights","")
         })
+
+        for context_window in context_windows(item["article"], ner_token_list=[_[0] for _ in item.get("entities", [])], window=2):
+            context_windows_docs.append({
+                "article_context_windows": context_window,
+                "article_id": item.get("id"),
+                "id": str(uuid.uuid5(uuid.NAMESPACE_DNS, item.get("id") + context_window))
+            })
+        for context_window in context_windows(item.get("resolved_text", ""), ner_token_list=[_[0] for _ in item.get("entities", [])], window=2):
+            context_windows_docs.append({
+                "resolved_context_windows": context_window,
+                "article_id": item.get("id"),
+                "id": str(uuid.uuid5(uuid.NAMESPACE_DNS, item.get("id") + context_window))
+            })
     collection.add_documents(docs)
+    context_windows_collection.add_documents(context_windows_docs)
 
 # Now add the coref results
 all_docs = DataBatch(
@@ -153,9 +153,11 @@ for batch in tqdm(all_docs.batched(SOLR_INDEXING_PAGE_SIZE), total=all_docs.coun
             continue
         docs.append({
             "id": item.get("id"),
-            "resolved_text": item.get("resolved_text", [])
+            "resolved_text": item.get("resolved_text", ""),
         })
     collection.add_documents(docs, atomic=True)
+    context_windows_collection.add_documents(context_windows_docs)
+
 if missing_coref:
     print(f"{len(missing_coref)} docs are missing coref results")
 
