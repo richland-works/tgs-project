@@ -28,7 +28,7 @@ class ArticleEntityProcessor:
         model_name="en_core_web_trf",
         batch_size: int=128,
         use_gpu: bool=True,
-        results_path: str = os.getenv("NER_RESULTS_PATH", "ner_results.json"),
+        results_path: str = os.getenv("NER_RESULTS_PATH", "ner_results.jsonl"),
         flush_interval: int = 512,
     ):
         if use_gpu:
@@ -66,19 +66,19 @@ class ArticleEntityProcessor:
             processed_ids = {item["id"] for item in read_jsonl(self.results_path)}
             print(f"Already processed {len(processed_ids)} articles... skipping them.")
             articles = [item for item in articles if item["id"] not in processed_ids]
-        texts = (item["article"] for item in articles)
-
+        text_items_stream = ((item["article"], item) for item in articles)
+        stream_w_progress = tqdm(text_items_stream, desc="NER", total=len(articles))
         print(f"Processing {len(articles)} articles...")
         results = []
-        with open(self.results_path, "a") as f:
-            for doc, item in zip(self.nlp.pipe(texts, batch_size=self.batch_size),
-                                tqdm(articles, desc="NER", total=len(articles))):
-                results.append({
-                    "id": item["id"],
-                    "entities": self.ents_of(doc),
-                    "highlights": item["highlights"],
-                    "article": item["article"],
-                })
-                if len(results) >= self.flush_interval:
-                    write_jsonl(f, results)
-                    results = []
+        for doc, item in self.nlp.pipe(stream_w_progress, as_tuples=True, batch_size=self.batch_size):
+            results.append({
+                "id": item["id"],
+                "entities": self.ents_of(doc),
+                "highlights": item["highlights"],
+                "article": item["article"],
+            })
+            if len(results) >= self.flush_interval:
+                write_jsonl(self.results_path, results)
+                results = []
+        if results:
+            write_jsonl(self.results_path, results)
