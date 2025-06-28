@@ -33,7 +33,22 @@ def _drop_doc(rec):
     rec.pop("doc", None)
     return rec
 drop_doc = Stage(_drop_doc)
-
+def _drop_article(rec):
+    """
+    Drops the 'article' field from the record.
+    This is useful to reduce memory usage and avoid storing large text blobs.
+    """
+    rec.pop("article", None)
+    return rec
+drop_article = Stage(_drop_article)
+def _drop_highlights(rec):
+    """
+    Drops the 'highlight' field from the record.
+    This is useful to reduce memory usage and avoid storing large text blobs.
+    """
+    rec.pop("highlights", None)
+    return rec
+drop_highlights = Stage(_drop_highlights)
 
 
 class SentenceTokenizerPipeline(Stage):
@@ -98,7 +113,9 @@ class SentenceTokenizerPipeline(Stage):
         self.pipeline = (
             tokenize |
             count_sentences |
-            drop_doc
+            drop_doc |
+            drop_article |
+            drop_highlights
         )
 
         # If we have more than one worker, we need to parallelize the pipeline

@@ -1,5 +1,5 @@
 from tgs_project.document_processing.resolve_coreferences import CorefResolver
-from tgs_project.utils import load_cnn_dailymail
+from tgs_project.document_processing.datasets import load_cnn_dailymail
 
 dataset = load_cnn_dailymail()
 articles = list(dataset["train"])

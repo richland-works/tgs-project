@@ -7,18 +7,24 @@ try:
 except ImportError:
     print("dotenv not installed, skipping environment variable loading.")
 
-coref_results_path = os.getenv("COREF_RESULTS_PATH", "coref_results.jsonl")
-coref_results = (
-    _['article']
-    for _ in read_jsonl(
-        coref_results_path
+if __name__ == "__main__":
+    import multiprocessing as mp
+    mp.freeze_support()
+    
+    coref_results_path = os.getenv("COREF_RESULTS_PATH", "coref_results.jsonl")
+    coref_results = [
+        _['article']
+        for _ in read_jsonl(
+            coref_results_path
+        )
+    ]
+
+    # Experiment to ensure evaluation
+    word2vec_model = DocumentEmbedding(
+        n_workers=4,
     )
-)
-len_of_coref_results = get_jsonl_n_count(coref_results_path)
-word2vec_model = DocumentEmbedding(
-)
-word2vec_model.train_or_load_word2vec(
-    coref_results,
-    len_of_documents=len_of_coref_results
-)
+    word2vec_model.train_or_load_word2vec(
+        coref_results,
+        len_of_documents=len(coref_results)
+    )
 
