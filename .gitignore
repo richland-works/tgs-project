@@ -2,6 +2,7 @@
 .env
 *.jsonl
 generated_data/
+models/
 out/
 *.json
 .venv/
