@@ -1592,7 +1592,7 @@ version = "1.5.1"
 description = "Lightweight pipelining with Python functions"
 optional = false
 python-versions = ">=3.9"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "joblib-1.5.1-py3-none-any.whl", hash = "sha256:4719a31f054c7d766948dcd83e9613686b27114f190f717cec7eaa2084f8a74a"},
     {file = "joblib-1.5.1.tar.gz", hash = "sha256:f4f86e351f39fe3d0d32a9f2c3d8af1ee4cec285aafcb27003dda5205576b444"},
@@ -3924,7 +3924,7 @@ version = "1.7.0"
 description = "A set of python modules for machine learning and data mining"
 optional = false
 python-versions = ">=3.10"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "scikit_learn-1.7.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:9fe7f51435f49d97bd41d724bb3e11eeb939882af9c29c931a8002c357e8cdd5"},
     {file = "scikit_learn-1.7.0-cp310-cp310-macosx_12_0_arm64.whl", hash = "sha256:d0c93294e1e1acbee2d029b1f2a064f26bd928b284938d51d412c22e0c977eb3"},
@@ -3974,7 +3974,7 @@ version = "1.13.1"
 description = "Fundamental algorithms for scientific computing in Python"
 optional = false
 python-versions = ">=3.9"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "scipy-1.13.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:20335853b85e9a49ff7572ab453794298bcf0354d8068c5f6775a0eabf350aca"},
     {file = "scipy-1.13.1-cp310-cp310-macosx_12_0_arm64.whl", hash = "sha256:d605e9c23906d1994f55ace80e0125c587f96c020037ea6aa98d01b4bd2e222f"},
@@ -4410,7 +4410,7 @@ version = "3.6.0"
 description = "threadpoolctl"
 optional = false
 python-versions = ">=3.9"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "threadpoolctl-3.6.0-py3-none-any.whl", hash = "sha256:43a0b8fd5a2928500110039e43a5eed8480b918967083ea48dc3ab9f13c4a7fb"},
     {file = "threadpoolctl-3.6.0.tar.gz", hash = "sha256:8ab8b4aa3491d812b623328249fab5302a68d2d71745c8a4c719a2fcaba9f44e"},
@@ -5226,4 +5226,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "<3.13,>=3.11"
-content-hash = "9e0021af89662bfd9d0d784eb887e074ab75ec13039428e348afce276f5a18a6"
+content-hash = "a695e5b34ae347df3e4ae26014ce4f2620efd68009af0e36b21aad4eff7debd6"
