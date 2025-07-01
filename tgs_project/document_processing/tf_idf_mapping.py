@@ -171,6 +171,7 @@ class TfidfModel:
             pickle.dump((self.vec, self.idf, self.vocab), f)
 
     def _load(self):
+        print(f"Loading TF-IDF model from {self.model_path}")
         with open(self.model_path, "rb") as f:
             self.vec, self.idf, self.vocab = pickle.load(f)
 
