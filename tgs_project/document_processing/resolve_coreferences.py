@@ -55,22 +55,22 @@ class CorefResolver:
         print(f"Already processed {len(processed_ids)} articles... skipping them.")
         print(f"Processing {len(articles_to_process)} articles...")
 
-        texts = (item["article"] for item in articles_to_process)
-        article_gen = (item for item in articles_to_process)
+        text_item_stream = ((item["article"],item) for item in articles_to_process)
         results = []
+        stream_w_progress = tqdm(text_item_stream, desc="Coref", total=len(articles_to_process))
 
-        with open(self.results_path, "a") as f:
-            for doc, item in zip(self.nlp.pipe(texts, batch_size=self.batch_size), tqdm(article_gen, desc="Coref", total=len(articles_to_process))):
-                clusters = doc._.coref_clusters
-                resolved_text = self.resolve_corefs(doc.text, clusters)
-                results.append({
-                    "id": item["id"],
-                    "resolved_text": resolved_text,
-                    "article": item["article"],
-                    "highlights": item["highlights"],
-                })
-                if len(results) >= self.flush_interval:
-                    write_jsonl(f, results)
-                    results = []
-            if results:
-                write_jsonl(f, results)
+        # Process articles in batches
+        for doc, item in self.nlp.pipe(stream_w_progress, as_tuples=True, batch_size=self.batch_size, n_process=1):
+            clusters = doc._.coref_clusters
+            resolved_text = self.resolve_corefs(doc.text, clusters)
+            results.append({
+                "id": item["id"],
+                "resolved_text": resolved_text,
+                "article": item["article"],
+                "highlights": item["highlights"],
+            })
+            if len(results) >= self.flush_interval:
+                write_jsonl(self.results_path, results)
+                results = []
+        if results:
+            write_jsonl(self.results_path, results)
